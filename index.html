@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Fly Paradise</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪰</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Karla:ital,wght@0,400;0,600;1,400&family=Space+Mono:wght@400&display=swap">
+<style>
+/* ————— Fly Paradise · a terrarium for one fruit fly ————— */
+:root{
+  --ink:        #2e3423;   /* moss-black */
+  --ink-soft:   #5d6349;
+  --amber:      #c98a2d;   /* fly amber — interactive accent */
+  --blush:      #c98f8f;   /* pillow rose */
+  --glass:      rgba(247,248,238,.82);
+  --glass-edge: rgba(70,76,52,.18);
+  --synapse:    #8fd8ff;   /* neural cyan */
+  --violet:     #b9a0ff;
+  --night:      #10141f;
+  --day-a:      #f3ecd9;   /* warm window light  */
+  --day-b:      #d9e2cd;   /* sage room shadow   */
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Karla", "Segoe UI", system-ui, sans-serif;
+  --mono:  "Space Mono", "SFMono-Regular", Consolas, monospace;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; overflow:hidden; }
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  background:radial-gradient(120% 90% at 68% 12%, var(--day-a) 0%, var(--day-b) 78%, #c9d4bc 100%);
+  transition:background 1.2s ease;
+  -webkit-user-select:none; user-select:none;
+  touch-action:none;
+}
+body.neural{
+  background:radial-gradient(120% 90% at 50% 0%, #1b2233 0%, var(--night) 75%);
+  color:#dfe7f4;
+}
+#stage{ position:fixed; inset:0; display:block; cursor:none; }
+.ui{ position:fixed; z-index:10; }
+
+/* ————— specimen tag ————— */
+#tag{
+  top:18px; left:18px; max-width:250px;
+  background:var(--glass);
+  border:1px solid var(--glass-edge);
+  border-radius:4px 14px 14px 14px;
+  padding:12px 16px 11px;
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  box-shadow:0 6px 24px rgba(46,52,35,.10);
+  transition:background .8s ease, border-color .8s ease;
+}
+body.neural #tag{ background:rgba(18,24,38,.75); border-color:rgba(143,216,255,.22); }
+#tag .name{
+  font-family:var(--serif); font-weight:600; font-style:italic;
+  font-size:23px; line-height:1.1; letter-spacing:.01em;
+}
+#tag .species{
+  font-style:italic; font-size:11px; color:var(--ink-soft);
+  margin-top:1px; letter-spacing:.02em;
+}
+body.neural #tag .species{ color:#93a3c0; }
+#tag .mood{ display:flex; align-items:center; gap:7px; margin-top:8px; font-size:13px; }
+#tag .mood-dot{
+  width:7px; height:7px; border-radius:50%; background:#7d9b62; flex:none;
+  transition:background .4s ease; box-shadow:0 0 0 3px rgba(125,155,98,.18);
+}
+#tag .hearts{ display:flex; gap:3px; margin-top:7px; }
+#tag .hearts svg{ width:13px; height:12px; }
+#tag .hearts .h-bg{ fill:rgba(110,100,70,.18); }
+body.neural #tag .hearts .h-bg{ fill:rgba(255,255,255,.12); }
+#tag .hearts .h-fill{ fill:var(--amber); }
+#tag .trust-label{
+  font-family:var(--mono); font-size:8px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-soft); margin-top:3px;
+}
+body.neural #tag .trust-label{ color:#93a3c0; }
+
+/* ————— neural caption ————— */
+#neuro-caption{
+  left:18px; bottom:18px; max-width:min(430px, 70vw);
+  font-family:var(--mono); font-size:11px; line-height:1.55;
+  color:var(--synapse);
+  text-shadow:0 0 14px rgba(143,216,255,.5);
+  opacity:0; transform:translateY(6px);
+  transition:opacity .6s ease, transform .6s ease;
+  pointer-events:none;
+}
+#neuro-caption .region{ color:var(--violet); }
+#neuro-caption.show{ opacity:1; transform:none; }
+#neuro-count{
+  display:block; margin-top:3px; font-size:8.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:#5e7fa8;
+}
+
+/* ————— round controls ————— */
+#controls{ right:18px; bottom:18px; display:flex; flex-direction:column; gap:10px; }
+.rbtn{
+  width:44px; height:44px; border-radius:50%;
+  background:var(--glass); border:1px solid var(--glass-edge);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  color:var(--ink); cursor:pointer; display:grid; place-items:center;
+  box-shadow:0 4px 16px rgba(46,52,35,.12);
+  transition:transform .15s ease, background .8s ease, color .3s ease, border-color .8s ease;
+}
+.rbtn:hover{ transform:translateY(-2px); }
+.rbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+.rbtn svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.rbtn.active{ background:var(--ink); color:#f3efdf; border-color:var(--ink); }
+body.neural .rbtn{ background:rgba(18,24,38,.75); color:#cfdcf2; border-color:rgba(143,216,255,.22); }
+body.neural .rbtn.active{ background:var(--synapse); color:var(--night); border-color:var(--synapse); }
+
+/* ————— screen cursor dot (outside the bowl) ————— */
+#cursor-dot{
+  position:fixed; z-index:8; width:13px; height:13px; border-radius:50%;
+  pointer-events:none; transform:translate(-50%,-50%);
+  background:rgba(46,52,35,.22); border:1.5px solid rgba(46,52,35,.6);
+  box-shadow:0 1px 6px rgba(46,52,35,.25), inset 0 0 3px rgba(255,255,250,.5);
+  transition:opacity .25s ease; opacity:0; left:0; top:0;
+}
+body.neural #cursor-dot{
+  background:rgba(143,216,255,.2); border-color:rgba(143,216,255,.65);
+  box-shadow:0 0 10px rgba(143,216,255,.4);
+}
+
+/* ————— hint toast ————— */
+#hint{
+  left:50%; bottom:26px; transform:translateX(-50%) translateY(4px);
+  background:var(--glass); border:1px solid var(--glass-edge);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  border-radius:999px; padding:8px 18px;
+  font-size:13px; color:var(--ink);
+  opacity:0; transition:opacity .8s ease, transform .8s ease;
+  pointer-events:none; white-space:nowrap;
+  box-shadow:0 6px 24px rgba(46,52,35,.10);
+}
+body.neural #hint{ background:rgba(18,24,38,.8); color:#cfdcf2; border-color:rgba(143,216,255,.22); }
+#hint.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ————— help / field guide ————— */
+#help{
+  inset:0; display:none; place-items:center;
+  background:rgba(24,28,16,.45); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+  z-index:30;
+}
+#help.open{ display:grid; }
+#help .card{
+  width:min(420px, calc(100vw - 40px)); max-height:calc(100vh - 60px); overflow-y:auto;
+  background:#f7f5e9; color:var(--ink);
+  border-radius:6px 20px 20px 20px;
+  padding:26px 28px 20px;
+  box-shadow:0 30px 80px rgba(10,14,4,.4);
+}
+#help h2{ font-family:var(--serif); font-style:italic; font-weight:600; font-size:24px; }
+#help .sub{ font-size:12px; font-style:italic; color:var(--ink-soft); margin-top:2px; }
+#help dl{ margin-top:16px; display:grid; grid-template-columns:auto 1fr; gap:9px 14px; font-size:13.5px; line-height:1.5; }
+#help dt{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--amber); padding-top:3px; white-space:nowrap;
+}
+#help dd{ color:var(--ink); }
+#help .note{
+  margin-top:16px; padding-top:13px; border-top:1px solid rgba(70,76,52,.16);
+  font-size:11.5px; line-height:1.55; color:var(--ink-soft);
+}
+#help .note a{ color:var(--amber); }
+#help .close{
+  margin-top:15px; width:100%; padding:10px;
+  font-family:var(--sans); font-weight:600; font-size:13px;
+  background:var(--ink); color:#f3efdf; border:none; border-radius:10px; cursor:pointer;
+}
+#help .close:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+/* ————— errors (also read by headless tests) ————— */
+#errbox{
+  left:50%; top:20px; transform:translateX(-50%);
+  max-width:min(600px, 90vw); display:none;
+  background:#3a1f1a; color:#ffd9cc; border-radius:10px;
+  font-family:var(--mono); font-size:11px; line-height:1.5;
+  padding:12px 16px; z-index:99; white-space:pre-wrap;
+}
+
+@media (max-width:600px){
+  #tag{ max-width:200px; padding:10px 13px 9px; }
+  #tag .name{ font-size:19px; }
+  #controls{ right:12px; bottom:12px; }
+  #neuro-caption{ bottom:76px; }
+}
+@media (prefers-reduced-motion:reduce){
+  #tag,.rbtn,#hint,#neuro-caption{ transition:none; }
+}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="ui" id="tag" aria-live="polite">
+  <div class="name" id="fly-name">Mel</div>
+  <div class="species">Drosophila melanogaster</div>
+  <div class="mood"><span class="mood-dot" id="mood-dot"></span><span id="mood-text">settling in</span></div>
+  <div class="hearts" id="hearts" title="trust"></div>
+  <div class="trust-label">trust</div>
+</div>
+
+<div class="ui" id="neuro-caption">
+  <span id="neuro-line"></span>
+  <span id="neuro-count">homage to the flywire connectome · 139,255 neurons</span>
+</div>
+
+<div class="ui" id="controls">
+  <button class="rbtn" id="btn-neural" aria-label="Toggle neural view" title="Neural view (N)">
+    <svg viewBox="0 0 24 24"><path d="M12 3c-4.5 0-7.5 3-7.5 6.5 0 2 .8 3.3 2 4.3-.3 1.7-1 2.7-1 2.7s2.2 0 3.8-1.1c.9.3 1.8.4 2.7.4 4.5 0 7.5-3 7.5-6.4S16.5 3 12 3Z"/><circle cx="9" cy="9.5" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r=".8" fill="currentColor" stroke="none"/><path d="M9.6 10.1l2.6 1.4M13.8 11.4l1.4-2.2"/></svg>
+  </button>
+  <button class="rbtn" id="btn-sound" aria-label="Toggle sound" title="Sound">
+    <svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z"/><path class="snd-on" d="M15.5 9.5c1.4 1.4 1.4 3.6 0 5" opacity="0"/><path class="snd-off" d="M15.5 10l4 4M19.5 10l-4 4"/></svg>
+  </button>
+  <button class="rbtn" id="btn-help" aria-label="How to care for Mel" title="Field guide">
+    <svg viewBox="0 0 24 24"><path d="M9.3 9.2C9.6 7.6 10.7 6.7 12.2 6.7c1.7 0 2.9 1.1 2.9 2.6 0 2.4-3 2.5-3 4.6"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>
+  </button>
+</div>
+
+<div class="ui" id="hint" role="status"></div>
+
+<div class="ui" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title">
+  <div class="card">
+    <h2 id="help-title">Caring for Mel</h2>
+    <div class="sub">a field guide, for gentle hands</div>
+    <dl>
+      <dt>look around</dt><dd>Drag the empty air to orbit, or use the arrow keys. Scroll to lean in.</dd>
+      <dt>say hello</dt><dd>Bring your cursor near him <em>slowly</em>. Sudden movement reads as a swat — he will bolt.</dd>
+      <dt>pet him</dt><dd>Hover close and stroke in slow, small circles. Trust grows; hearts happen.</dd>
+      <dt>pick him up</dt><dd>Once he trusts you, press and hold on him a moment — he'll climb aboard. Carry him slowly and set him down anywhere. A drop onto the pillow is appreciated.</dd>
+      <dt>feed him</dt><dd>Drag the cucumber or carrot around the terrarium. When he's peckish, he'll find it and unfurl his proboscis.</dd>
+      <dt>neural view</dt><dd>Press <b>N</b> to see his connectome — the circuits light up with whatever he's doing right now.</dd>
+    </dl>
+    <div class="note">
+      His brain here is a stylized homage to the <a href="https://flywire.ai" target="_blank" rel="noopener">FlyWire connectome</a> —
+      all 139,255 neurons of a real female fruit fly were mapped, every synapse of it, and released openly in 2024.
+      This little world runs entirely in your browser. No flies were swatted.
+    </div>
+    <button class="close" id="help-close">Back to the terrarium</button>
+  </div>
+</div>
+
+<div id="cursor-dot"></div>
+<div class="ui" id="errbox"></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="js/flymodel.data.js"></script>
+<script src="js/world.js"></script>
+<script src="js/fly.js"></script>
+<script src="js/brain.js"></script>
+<script src="js/interact.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
