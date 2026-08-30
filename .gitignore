@@ -4,3 +4,4 @@ venv/
 .serve.log
 nohup.out
 .DS_Store
+data/flywire-v783/
