@@ -2,6 +2,7 @@
 (async function () {
   'use strict';
 
+  const params = new URLSearchParams(location.search);
   const errbox = document.getElementById('errbox');
   function showError(msg) {
     errbox.style.display = 'block';
@@ -11,7 +12,6 @@
   window.addEventListener('error', e => showError(e.message + '\n' + (e.filename || '') + ':' + (e.lineno || '')));
   window.addEventListener('unhandledrejection', e => showError(String(e.reason)));
 
-  const params = new URLSearchParams(location.search);
   FP.fast = params.has('fast');
   FP.freeze = params.has('freeze');
   FP.forcePet = params.has('pet');
@@ -20,8 +20,19 @@
 
   // ---------- renderer / camera ----------
   const canvas = document.getElementById('stage');
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: true });
-  await renderer.init();
+  // ?webgl=1 forces Three's WebGL 2 backend (the path browsers without WebGPU take)
+  const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: true, forceWebGL: params.has('webgl') });
+  try {
+    await renderer.init();
+  } catch (err) {
+    showError('This browser could not start WebGPU or WebGL 2, so the terrarium cannot be drawn.\n' +
+      'Try a recent Chrome, Edge, Firefox or Safari with hardware acceleration enabled.\n\n' + (err && err.message || err));
+    return;
+  }
+  renderer.onDeviceLost = (info) => {
+    showError('The graphics device was lost' + (info && info.message ? ' (' + info.message + ')' : '') +
+      '. Reload the page to wake the terrarium back up.');
+  };
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -43,6 +54,12 @@
   };
   const camPreset = CAMS[params.get('cam')] || CAMS.default;
   camera.position.fromArray(camPreset[0]);
+  // portrait phones: back the default view off so the whole bowl fits
+  if (!params.get('cam') && camera.aspect < 0.95) {
+    const k = Math.min(2.1, Math.pow(0.95 / camera.aspect, 0.85));
+    camera.position.sub(new THREE.Vector3().fromArray(camPreset[1])).multiplyScalar(k)
+      .add(new THREE.Vector3().fromArray(camPreset[1]));
+  }
 
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.target.fromArray(camPreset[1]);
@@ -74,7 +91,7 @@
   const fly = FP.createFly(scene, world);
   const brain = FP.createBrain(scene, camera);
   const interact = FP.createInteraction(renderer, camera, controls, world, fly);
-  FP.debug = { scene, fly, world, brain, renderer };
+  FP.debug = { scene, fly, world, brain, renderer, camera, controls, interact };
   FP.rendererBackend = renderer.backend && renderer.backend.isWebGPUBackend ? 'webgpu' : 'webgl2-fallback';
 
   // trust persists between visits
@@ -121,8 +138,11 @@
     shownHints[id] = true;
     hintQueue.push({ text, dur: dur || 5 });
   }
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   if (!params.has('shot')) {
-    setTimeout(() => hint('hello', 'drag the empty air to look around — and move slowly near Mel, he’s shy'), 1800);
+    setTimeout(() => hint('hello', coarse
+      ? 'drag to look around — stroke slowly beside Mel with a fingertip, he’s shy'
+      : 'drag the empty air to look around — and move slowly near Mel, he’s shy'), 1800);
   }
 
   const CAPTIONS = {
@@ -143,7 +163,7 @@
 
   // ---------- neural toggle ----------
   const btnNeural = document.getElementById('btn-neural');
-  let neural = false, targetExposure = 1.05;
+  let neural = false, targetExposure = 1.05, lookShift = 0, lookShiftNow = 0;
   function setNeural(v) {
     neural = v;
     document.body.classList.toggle('neural', v);
@@ -151,12 +171,15 @@
     brain.setVisible(v);
     neuroCaption.classList.toggle('show', v);
     targetExposure = v ? 0.34 : 1.05;
+    lookShift = v ? 4.4 : 0;           // tilt the view up so the brain hologram is in frame
   }
   btnNeural.addEventListener('click', () => setNeural(!neural));
   const keysHeld = {};
   window.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'n' || e.key === 'N') setNeural(!neural);
-    if (e.key === 'Escape') helpEl.classList.remove('open');
+    if (e.key === '?') setHelp(!helpEl.classList.contains('open'));   // documented in the README
+    if (e.key === 'Escape') setHelp(false);
     if (e.key.startsWith('Arrow')) { keysHeld[e.key] = true; e.preventDefault(); }
   });
   window.addEventListener('keyup', e => { delete keysHeld[e.key]; });
@@ -179,9 +202,16 @@
 
   // ---------- help ----------
   const helpEl = document.getElementById('help');
-  document.getElementById('btn-help').addEventListener('click', () => helpEl.classList.add('open'));
-  document.getElementById('help-close').addEventListener('click', () => helpEl.classList.remove('open'));
-  helpEl.addEventListener('click', e => { if (e.target === helpEl) helpEl.classList.remove('open'); });
+  const btnHelp = document.getElementById('btn-help');
+  function setHelp(open) {
+    const was = helpEl.classList.contains('open');
+    helpEl.classList.toggle('open', open);
+    if (open && !was) document.getElementById('help-close').focus();
+    else if (!open && was) btnHelp.focus();
+  }
+  btnHelp.addEventListener('click', () => setHelp(true));
+  document.getElementById('help-close').addEventListener('click', () => setHelp(false));
+  helpEl.addEventListener('click', e => { if (e.target === helpEl) setHelp(false); });
 
   // ---------- sound ----------
   const btnSound = document.getElementById('btn-sound');
@@ -238,6 +268,7 @@
       if (forceState === 'nap') {
         fly.root.position.set(world.pillow.x, world.pillow.worldTop, world.pillow.z);
         fly.onPillow = true; fly.perchY = world.pillow.worldTop;
+        fly.plantAll();
       }
       if (forceState === 'eat') { fly.needs.hunger = 0.9; }
       if (forceState === 'drink') { fly.needs.thirst = 0.9; }
@@ -249,6 +280,7 @@
   const clock = new THREE.Clock();
   let hudT = 0, elapsed = 0;
   const headPos = new THREE.Vector3();
+  const flyPose = { x: 0, y: 0, z: 0, fx: 0, fz: 1 };
 
   function frame() {
     requestAnimationFrame(frame);
@@ -257,13 +289,22 @@
 
     const io = interact.update(dt);
     if (FP.forcePet) { io.petting = true; io.cursorDist = 1; io.cursorSpeed = 1; }
-    const neural = brain.step(dt, fly, io);
-    io.neural = neural;
+    // (named so it no longer shadows the neural-view flag used for captions)
+    const drive = brain.step(dt, fly, io);
+    io.neural = drive;
     fly.update(dt, elapsed, io);
-    world.update(dt, elapsed);
+    const fr = fly.root;
+    flyPose.x = fr.position.x; flyPose.y = fr.position.y; flyPose.z = fr.position.z;
+    flyPose.fx = Math.sin(fr.rotation.y); flyPose.fz = Math.cos(fr.rotation.y);
+    world.update(dt, elapsed, flyPose);
     fly.headWorld(headPos);
-    brain.update(dt, elapsed, neural.activity, headPos);
+    brain.update(dt, elapsed, drive.activity, headPos);
     keyOrbit(dt);
+    if (Math.abs(lookShift - lookShiftNow) > 1e-3 && !params.get('cam')) {
+      const d = (lookShift - lookShiftNow) * Math.min(1, dt * 2.2);
+      lookShiftNow += d;
+      controls.target.y += d; camera.position.y += d;
+    }
     controls.update();
 
     renderer.toneMappingExposure = THREE.MathUtils.lerp(renderer.toneMappingExposure, targetExposure, Math.min(1, dt * 2.5));
@@ -292,7 +333,7 @@
         heartFills[i].style.opacity = Math.max(0, Math.min(1, fly.trust * 3 - i));
       }
       if (fly.trust > 0.5) hint('trust1', 'Mel is starting to trust you');
-      if (fly.canCarry()) hint('carry', 'press and hold on Mel to offer him a lift');
+      if (fly.canCarry()) hint('carry', coarse ? 'touch and hold Mel to offer him a lift' : 'press and hold on Mel to offer him a lift');
 
       if (neural) {
         captionCooldown -= 0.2;

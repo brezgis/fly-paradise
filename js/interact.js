@@ -17,19 +17,17 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
   flyHit.position.y = 0.3;
   fly.root.add(flyHit);
 
-  // cursor presence ring, resting on the moss
-  const ring = new THREE.Group();
-  const ringMesh = new THREE.Mesh(
-    new THREE.RingGeometry(0.55, 0.68, 32),
+  // cursor presence ring, draped over the moss / pillow / food under it (a flat
+  // ring used to slice into slopes and vanish under props)
+  const ringGeo = new THREE.RingGeometry(0.55, 0.68, 32, 1); ringGeo.rotateX(-Math.PI / 2);
+  const ringMesh = new THREE.Mesh(ringGeo,
     new THREE.MeshBasicMaterial({ color: 0x8fae6d, transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide }));
-  ringMesh.rotation.x = -Math.PI / 2;
-  const ringDot = new THREE.Mesh(
-    new THREE.CircleGeometry(0.09, 16),
+  const dotGeo = new THREE.CircleGeometry(0.09, 16); dotGeo.rotateX(-Math.PI / 2);
+  const ringDot = new THREE.Mesh(dotGeo,
     new THREE.MeshBasicMaterial({ color: 0x8fae6d, transparent: true, opacity: 0.0, depthWrite: false }));
-  ringDot.rotation.x = -Math.PI / 2;
-  ringDot.position.y = 0.02;
-  ring.add(ringMesh, ringDot);
-  fly.root.parent.add(ring);
+  ringMesh.renderOrder = ringDot.renderOrder = 2;
+  ringMesh.visible = ringDot.visible = false;
+  fly.root.parent.add(ringMesh, ringDot);
 
   const I = {
     io: {
@@ -46,6 +44,7 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
 
   let lastCursor = new V(), haveLast = false, speedSmooth = 0;
   let petHold = 0, holdTimer = -1, holdStart = { x: 0, y: 0 }, orbiting = false;
+  let stroking = false;                             // touch: finger down near Mel
   let lastEvt = null, lastMoveT = performance.now();
 
   function setNDC(e) {
@@ -59,8 +58,8 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
     plane.constant = 0;
     let ok = ray.ray.intersectPlane(plane, out);
     if (!ok) return false;
-    for (let i = 0; i < 2; i++) {
-      plane.constant = -world.groundHeight(out.x, out.z);
+    for (let i = 0; i < 3; i++) {
+      plane.constant = -world.surfaceHeight(out.x, out.z, { maxY: world.groundHeight(out.x, out.z) + 1.6 });
       if (!ray.ray.intersectPlane(plane, out)) break;
     }
     return true;
@@ -100,8 +99,11 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
     refreshCursor(e, dt);
 
     if (I.carrying) {
-      // carry plane floats above the terrain
-      const y = world.groundHeight(I.io.cursorWorld.x, I.io.cursorWorld.z) + 1.15;
+      // carry plane floats above the terrain — and above the pillow, dish or
+      // food under the cursor, so he is never dragged through them
+      const cx = I.io.cursorWorld.x, cz = I.io.cursorWorld.z;
+      const y = Math.max(world.groundHeight(cx, cz) + 1.15,
+        world.surfaceHeight(cx, cz, { maxY: world.groundHeight(cx, cz) + 1.6 }) + 0.7);
       plane.constant = -y;
       if (ray.ray.intersectPlane(plane, tmp2)) {
         const r = Math.hypot(tmp2.x, tmp2.z);
@@ -120,7 +122,7 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
       if (ray.ray.intersectPlane(plane, tmp2)) {
         f.mesh.position.x = tmp2.x + f.grabOffset.x;
         f.mesh.position.z = tmp2.z + f.grabOffset.z;
-        world.settleFood(f);
+        world.settleFood(f, flyOnGround() ? fly.root.position : null);
         const dFly = f.mesh.position.distanceTo(fly.root.position);
         if (speedSmooth > 9 && dFly < 3) fly.stress += 0.35;
       }
@@ -132,15 +134,33 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
 
   el.addEventListener('pointerdown', (e) => {
     lastEvt = e;
+    isTouch = e.pointerType === 'touch';
     setNDC(e);
     ray.setFromCamera(ndc, camera);
     // the fly first
     const hitFly = ray.intersectObject(flyHit, false).length > 0;
+    // Touch has no hover, so petting could never happen on phones: a finger
+    // that comes down on or right beside Mel strokes him instead of orbiting.
+    if (isTouch && flyOnGround()) {
+      const g = groundPoint(tmp) ? tmp.distanceTo(fly.root.position) : 99;
+      if (hitFly || g < 2.3) {
+        controls.enabled = false;
+        stroking = true; I.pointerIn = true; haveLast = false;
+        refreshCursor(e, 0);
+        if (hitFly && fly.state === 'nap') {
+          fly.setState('idle');
+          fly.stress = Math.min(1, fly.stress + 0.15);
+        } else if (hitFly && fly.canCarry()) {
+          holdTimer = 0;
+          holdStart.x = e.clientX; holdStart.y = e.clientY;
+        }
+        return;
+      }
+    }
     if (hitFly && !['fly', 'land'].includes(fly.state)) {
       controls.enabled = false;
       if (fly.state === 'nap') {                     // gentle wake
         fly.setState('idle');
-        fly.perchY = fly.onPillow ? fly.perchY : null;
         fly.stress = Math.min(1, fly.stress + 0.25);
       } else if (fly.canCarry()) {
         holdTimer = 0;
@@ -172,11 +192,13 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
       I.io.carryTarget = null;
       fly.endCarry(p);
     }
-    if (I.draggingFood) { world.settleFood(I.draggingFood); I.draggingFood = null; }
+    if (I.draggingFood) { world.settleFood(I.draggingFood, flyOnGround() ? fly.root.position : null); I.draggingFood = null; }
     holdTimer = -1;
     orbiting = false;
+    if (stroking) { stroking = false; I.pointerIn = false; haveLast = false; speedSmooth = 0; }
     controls.enabled = true;
   }
+  function flyOnGround() { return !['fly', 'land', 'carried', 'hop'].includes(fly.state); }
   el.addEventListener('pointerup', release);
   el.addEventListener('pointercancel', release);
   el.addEventListener('pointerleave', () => {
@@ -216,14 +238,21 @@ FP.createInteraction = function (renderer, camera, controls, world, fly) {
     const targetOp = showRing ? 0.55 : 0;
     ringMesh.material.opacity = THREE.MathUtils.lerp(ringMesh.material.opacity, targetOp, Math.min(1, dt * 8));
     ringDot.material.opacity = ringMesh.material.opacity * 0.8;
+    ringMesh.visible = ringDot.visible = ringMesh.material.opacity > 0.01;
     if (showRing) {
-      ring.position.set(io.cursorWorld.x, world.groundHeight(io.cursorWorld.x, io.cursorWorld.z) + 0.06, io.cursorWorld.z);
+      const x = io.cursorWorld.x, z = io.cursorWorld.z;
+      const cap = { maxY: world.groundHeight(x, z) + 1.6 };   // moss-level props, never the glass rim
+      const y = world.surfaceHeight(x, z, cap);
       const danger = speedSmooth > 6 && io.cursorDist < 5;
       const color = danger ? 0xc96a4a : io.petting ? 0xc98a2d : 0x8fae6d;
       ringMesh.material.color.setHex(color);
       ringDot.material.color.setHex(color);
       const s = 1 + Math.min(0.5, speedSmooth * 0.04);
-      ring.scale.setScalar(io.petting ? 0.8 : s);
+      ringMesh.scale.setScalar(io.petting ? 0.8 : s);
+      ringDot.scale.setScalar(ringMesh.scale.x);
+      ringMesh.position.set(x, y, z); ringDot.position.set(x, y, z);
+      world.drape(ringMesh, 0.035, cap);
+      world.drape(ringDot, 0.045, cap);
     }
 
     // screen dot takes over wherever the moss ring can't live

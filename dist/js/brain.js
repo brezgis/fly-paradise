@@ -226,7 +226,10 @@ FP.createBrain = function (scene, camera) {
   B.update = function (dt, t, activity, flyHead) {
     activity = activity || modeledActivity;
     fade = THREE.MathUtils.lerp(fade, B.visible ? 1 : 0, Math.min(1, dt * 2.5));
-    if (fade < 0.01 && !B.visible) { group.visible = false; beam.visible = false; return; }
+    if (fade < 0.01 && !B.visible) {
+      if (group.visible) for (const el of Object.values(labelEls)) el.style.opacity = 0;
+      group.visible = false; beam.visible = false; return;
+    }
     if (!reduceMotion) group.rotation.y = Math.sin(t * 0.12) * 0.34;
     group.scale.setScalar(1.18);
 

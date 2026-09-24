@@ -31,7 +31,7 @@ Three.js r185 uses `WebGPURenderer`; browsers without WebGPU use its WebGL 2 fal
 
 - **Look around** — drag the empty air, arrow keys, scroll to zoom
 - **Say hello** — bring the cursor near him slowly; sudden movement reads as a swat
-- **Pet him** — hover close and stroke in slow, small circles
+- **Pet him** — hover close and stroke in slow, small circles (on a phone: stroke beside him with a fingertip)
 - **Pick him up** — once he trusts you, press and hold on him, then carry him gently
 - **Feed him** — drag the cucumber or carrot; when he's peckish he'll find it
 - **N** — neural view · **?** — field guide
@@ -89,7 +89,7 @@ venv/bin/python tools/bake_fly.py <work_dir> js/flymodel.data.js
 
 ## Debug URL parameters
 
-`?fast=1` speeds up hunger/thirst/sleep · `?neural=1` starts in neural view · `?state=groom|fly|nap|eat|drink` forces a behavior · `?cam=front|close|top|fly|neural|meltop` selects a camera preset · `?freeze=1` holds Mel still · `?wings=1&flap=0` debugs wing poses · `?pet=1` simulates petting · `?shot=1` hides the intro hint.
+`?fast=1` speeds up hunger/thirst/sleep · `?neural=1` starts in neural view · `?state=groom|fly|nap|eat|drink` forces a behavior · `?cam=front|close|top|fly|neural|meltop` selects a camera preset · `?freeze=1` holds Mel still · `?wings=1&flap=0` debugs wing poses · `?pet=1` simulates petting · `?shot=1` hides the intro hint · `?webgl=1` forces the WebGL 2 fallback renderer.
 
 ## Credits
 

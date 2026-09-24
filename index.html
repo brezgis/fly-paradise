@@ -188,7 +188,10 @@ body.neural #hint{ background:rgba(18,24,38,.8); color:#cfdcf2; border-color:rgb
   #tag{ max-width:200px; padding:10px 13px 9px; }
   #tag .name{ font-size:19px; }
   #controls{ right:12px; bottom:12px; }
-  #neuro-caption{ bottom:76px; }
+  #neuro-caption{ bottom:76px; max-width:calc(100vw - 90px); }
+  /* the toast used to run off both edges of a phone and cover the buttons */
+  #hint{ white-space:normal; text-align:center; width:max-content; max-width:calc(100vw - 132px);
+         border-radius:16px; bottom:18px; line-height:1.35; }
 }
 @media (prefers-reduced-motion:reduce){
   #tag,.rbtn,#hint,#neuro-caption{ transition:none; }

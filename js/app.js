@@ -16,12 +16,22 @@ const modules = [
   './main.js',
 ];
 
-for (const src of modules) {
-  await new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = new URL(src, import.meta.url).href;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Could not load ${src}`));
-    document.head.appendChild(script);
-  });
+try {
+  for (const src of modules) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = new URL(src, import.meta.url).href;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`Could not load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+} catch (err) {
+  // main.js (which normally reports errors) never ran, so say so here
+  const box = document.getElementById('errbox');
+  if (box) {
+    box.style.display = 'block';
+    box.textContent = 'something broke in the terrarium:\n' + err.message;
+  }
+  throw err;
 }
